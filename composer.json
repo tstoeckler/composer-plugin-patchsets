@@ -21,7 +21,9 @@
     }
   },
   "extra": {
-    "class": "Wieni\\ComposerPatchSet\\Composer\\Plugin\\PatchSet"
+    "class": "Wieni\\ComposerPatchSet\\Composer\\Plugin\\PatchSet",
+    "plugin-modifies-downloads": true,
+    "plugin-modifies-install-path": true
   },
   "config": {
     "allow-plugins": {
