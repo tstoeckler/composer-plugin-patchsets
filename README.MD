@@ -1,74 +1,21 @@
 # Composer Plugin Patchsets
 
-## Introduction
+This is an unmaintained fork of
+[github.com/wieni/composer-plugin-patchsets](https://github.com/wieni/composer-plugin-patchsets).
+See that for the general documentation.
 
-The `wieni/composer-plugin-patchsets` is a PHP Composer plugin designed to address the complexities in managing and applying patches within Drupal projects.  
-This plugin aims to centralize patch management, enabling a consistent approach to applying patches across multiple projects.
+This fork attempts to fix automatically re-patching dependencies when the patch
+repositories are updated as well as automatically patching all dependencies on
+initial install.
 
-## Problem Statement
+This fork was abandoned because it was deemed more feasible to call
+`composer patches-relock` and/or `composer patches-repatch` at the appropriate
+places manually rather than maintaining this fork. Feel free to use the code,
+however, or open an issue if you want to make a case for actually making this a
+properly maintained plugin.
 
-Current practices utilizing `cweagans/composer-patches` for patch management in projects have introduced several challenges:
+See also:
+- https://github.com/wieni/composer-plugin-patchsets/issues/1
+- https://github.com/wieni/composer-plugin-patchsets/pull/2
 
-- Lack of uniformity in patch application across different projects leads to inconsistencies in behaviors.
-- Difficulty in identifying and applying the same patches when upgrading versions due to variations in patch creation among different projects.
-
-## Objective
-
-The primary goal of the `wieni/composer-plugin-patchsets` is to enable dependency patch resolution. A feature thas has [been deprecated](https://www.cweagans.net/2023/07/dependency-patch-resolution/) in `cweagans/composer-patches`.
-
-## Functionality
-
-The plugin leverages the new plugin capabilities released by `cweagans/composer-patches`, allowing it to add patches by registering [a custom Resolver](https://docs.cweagans.net/composer-patches/api/capabilities/). 
-
-## Usage
-
-- Create a repository (eg `your-org/drupal-patches`) that contains a `composer.json` with patches defined [as documented by `cweagans/composer-patches`](https://docs.cweagans.net/composer-patches/usage/defining-patches/).
-- Require the `wieni/composer-plugin-patchsets` plugin and your new patch repository (`your-org/drupal-patches`) in your Drupal project.
-- Define the patch repository (`your-org/drupal-patches`) as a patch set in your `composer.json`:
-
-```json
-{
-  "extra": {
-    "patchRepositories": [
-      "your-org/drupal-patches"
-    ]
-  }
-}
-```
-
-This configuration instructs `wieni/composer-plugin-patchsets` to apply the patches defined in the `your-org/drupal-patches` repository.
-
-## Advanced Configuration
-
-The plugin supports an advanced configuration allowing the exclusion of specific packages and patches.  
-This next example demonstrates the exclusion of the "`#2907810`" patch for `drupal/core` and all patches for `drupal/field_group`.
-
-```json
-{
-  "extra": {
-    "patchRepositories": [
-      {
-        "name": "your-org/drupal-patches",
-        "excludedPatches": {
-          "drupal/core": [
-            "#2907810"
-          ],
-          "drupal/field_group": ["*"]
-        }
-      }
-    ]
-  }
-}
-```
-
-## Contributing
-
-Contributions, suggestions, and issue reports are welcome. Feel free to fork this repository and submit pull requests.
-
-## License
-
-This project is licensed under the MIT License.
-
-## Acknowledgments
-
-- Acknowledgment of `cweagans/composer-patches` for its pioneering efforts in patch management within Composer.
+As of now, this fork is not published on [Packagist](https://packagist.org).

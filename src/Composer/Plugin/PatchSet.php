@@ -9,6 +9,7 @@ use Composer\EventDispatcher\EventSubscriberInterface;
 use Composer\Installer\PackageEvent;
 use Composer\Installer\PackageEvents;
 use Composer\IO\IOInterface;
+use Composer\Package\Package;
 use Composer\Plugin\Capable;
 use Composer\Plugin\PluginInterface;
 use cweagans\Composer\Capability\Resolver\ResolverProvider as ResolverProviderInterface;
@@ -25,8 +26,8 @@ class PatchSet implements PluginInterface, EventSubscriberInterface, Capable
         return [
             // Make sure patch lock file is removed before the patches are
             // applied (which happens with priority 10).
-            PackageEvents::POST_PACKAGE_INSTALL => ['unlockPatches', 20],
-            PackageEvents::POST_PACKAGE_UPDATE => ['unlockPatches', 20],
+            PackageEvents::POST_PACKAGE_INSTALL => ['onPatchRepositoryInstall', 20],
+            PackageEvents::POST_PACKAGE_UPDATE => ['onPatchRepositoryUpdate', 20],
         ];
     }
 
@@ -50,7 +51,49 @@ class PatchSet implements PluginInterface, EventSubscriberInterface, Capable
     {
     }
 
-    public function unlockPatches(PackageEvent $event)
+    public function onPatchRepositoryInstall(PackageEvent $event)
+    {
+        $operation = $event->getOperation();
+        if (!($operation instanceof InstallOperation)) {
+            return;
+        }
+
+        $patchRepositoryNames = $this->getPatchRepositoryNames($event->getComposer());
+        if (!in_array($operation->getPackage()->getName(), $patchRepositoryNames, TRUE)) {
+            return;
+        }
+
+        $installedAlongWithPlugin = FALSE;
+        foreach ($event->getOperations() as $operation) {
+            if (($operation instanceof InstallOperation) && $operation->getPackage()->getName() === 'wieni/composer-plugin-patchsets') {
+                $installedAlongWithPlugin = TRUE;
+                break;
+            }
+        }
+        if (!$installedAlongWithPlugin) {
+            return;
+        }
+
+        foreach ($patchRepositoryNames as $patchRepositoryName) {
+            if (!$event->getLocalRepo()->findPackage($patchRepositoryName, '*')) {
+                return;
+            }
+        }
+
+        $lockFilePath = Patches::getPatchesLockFilePath();
+        if (!is_file($lockFilePath)) {
+            return;
+        }
+
+        $event->getIO()->write(sprintf(
+            '    - <info>Removing patch lock file after installing wieni/composer-plugin-patchsets and %s %s</info>',
+            (count($patchRepositoryNames) > 1 )? 'patch repositories' : 'path repository',
+            implode(', ', $patchRepositoryNames),
+        ));
+        unlink($lockFilePath);
+    }
+
+    public function onPatchRepositoryUpdate(PackageEvent $event)
     {
         $operation = $event->getOperation();
         if (!($operation instanceof UpdateOperation)) {
@@ -58,21 +101,9 @@ class PatchSet implements PluginInterface, EventSubscriberInterface, Capable
         }
 
         $composer = $event->getComposer();
-        $rootPackage = $composer->getPackage();
         $targetPackage = $operation->getTargetPackage();
-        $isPatchRepositoryUpdate = FALSE;
-        foreach ($rootPackage->getExtra()['patchRepositories'] ?? [] as $patchRepositoryJson) {
-            $patchRepositoryName = is_string($patchRepositoryJson)
-                ? $patchRepositoryJson
-                : $patchRepositoryJson['name'];
-
-            if ($targetPackage->getName() === $patchRepositoryName) {
-                $isPatchRepositoryUpdate = TRUE;
-                break;
-            }
-        }
-
-        if (!$isPatchRepositoryUpdate) {
+        $patchRepositoryNames = $this->getPatchRepositoryNames($composer);
+        if (!in_array($targetPackage->getName(), $patchRepositoryNames, TRUE)) {
             return;
         }
 
@@ -92,7 +123,7 @@ class PatchSet implements PluginInterface, EventSubscriberInterface, Capable
         $io = $event->getIO();
         $io->write(sprintf(
             '    - <info>Removing patch lock file due to updated patch repository %s</info>',
-            $patchRepositoryName,
+            $targetPackage->getName(),
         ));
         unlink($lockFilePath);
 
@@ -120,15 +151,32 @@ class PatchSet implements PluginInterface, EventSubscriberInterface, Capable
         }
 
         $newOperations = [];
-        foreach ($packagesToInstall as $packageToInstall) {
-            $io->write(sprintf(
-                '    - <info>Installing %s with updated patches</info>',
-                $packageToInstall,
-            ));
-            $newOperations[] = new InstallOperation($event->getLocalRepo()->findPackage($packageToInstall, '*'));
+        foreach ($packagesToInstall as $packageName) {
+            $package = $event->getLocalRepo()->findPackage($packageName, '*');
+            if ($package) {
+                $io->write(sprintf(
+                    '    - <info>Installing %s with updated patches</info>',
+                    $packageName,
+                ));
+                $newOperations[] = new InstallOperation($package);
+            }
         }
 
         $composer->getInstallationManager()->execute($event->getLocalRepo(), $newOperations);
+    }
+
+  /**
+   * @return string[]
+   */
+    public function getPatchRepositoryNames(Composer $composer): array {
+        $patchRepositoryNames = [];
+        $patchRepositories = $composer->getPackage()->getExtra()['patchRepositories'];
+        foreach ($patchRepositories ?? [] as $patchRepositoryJson) {
+            $patchRepositoryNames[] = is_string($patchRepositoryJson)
+                ? $patchRepositoryJson
+                : $patchRepositoryJson['name'];
+        }
+        return $patchRepositoryNames;
     }
 
 }
